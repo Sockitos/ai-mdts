@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	import LogsDialog from '@/components/logs-dialog.svelte';
 	import ModeToggle from '@/components/mode-toggle.svelte';
 	import PatientSelector from '@/components/patient-selector.svelte';
@@ -114,7 +115,7 @@
 				<div class="flex flex-col gap-y-4">
 					<div class="flex flex-col items-center gap-y-4">
 						<Avatar.Root class="h-40 w-40">
-							<Avatar.Image src={patient.avatar} alt="PT" />
+							<Avatar.Image src="{base}{patient.avatar}" alt="PT" />
 							<Avatar.Fallback>PT</Avatar.Fallback>
 						</Avatar.Root>
 						<PatientSelector {patients} bind:value={patient} />
