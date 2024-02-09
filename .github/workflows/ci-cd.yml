@@ -28,6 +28,9 @@ jobs:
           PUBLIC_SUPABASE_ANON_KEY: '${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}'
           PUBLIC_OPENAI_API_KEY: '${{ secrets.PUBLIC_OPENAI_API_KEY }}'
         run: |
+          echo "PUBLIC_SUPABASE_URL: $PUBLIC_SUPABASE_URL"
+          echo "PUBLIC_SUPABASE_ANON_KEY: $PUBLIC_SUPABASE_ANON_KEY"
+          echo "PUBLIC_OPENAI_API_KEY: $PUBLIC_OPENAI_API_KEY"
           npm run build
           touch build/.nojekyll
 
