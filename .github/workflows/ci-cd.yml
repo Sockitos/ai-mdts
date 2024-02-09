@@ -24,6 +24,9 @@ jobs:
       - name: Build
         env:
           BASE_PATH: '/ai-mdts'
+          PUBLIC_SUPABASE_URL: '${{ secrets.PUBLIC_SUPABASE_URL }}'
+          PUBLIC_SUPABASE_ANON_KEY: '${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}'
+          PUBLIC_OPENAI_API_KEY: '${{ secrets.PUBLIC_OPENAI_API_KEY }}'
         run: |
           npm run build
           touch build/.nojekyll
