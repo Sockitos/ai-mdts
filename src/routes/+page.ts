@@ -6,7 +6,7 @@ export const load = async ({ parent }) => {
 	const { session, openai } = await parent();
 	if (!session) {
 		const basePath = import.meta.env.BASE_URL;
-		return redirect(303, `${basePath}/login`);
+		return redirect(303, `${basePath}login`);
 	}
 
 	function instanceOfPatient(assistant: Assistant): assistant is AssistantWithPatient {
