@@ -8,6 +8,7 @@
 	import { Card } from '@/components/ui/card';
 	import { Separator } from '@/components/ui/separator';
 	import type { AssistantWithPatient, Message, Patient } from '@/types';
+	import { SupabaseAuthClient } from '@supabase/supabase-js/dist/module/lib/SupabaseAuthClient.js';
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
 	import type { Thread } from 'openai/resources/beta/index.mjs';
 	import type { FileObject } from 'openai/resources/index.mjs';
@@ -16,10 +17,13 @@
 
 	let patients: Patient[] = [];
 	let patient: Patient | undefined;
+	let userID: string | undefined;
 	let assistantWithPatient: AssistantWithPatient | undefined;
 	let files: FileObject[] = [];
 	let thread: Thread | undefined;
 	let messages: Message[] = [];
+
+	$: getUser();
 
 	$: patients = data.assistants.map((assistant) => assistant.metadata);
 
@@ -32,13 +36,26 @@
 		createThread();
 	}
 
+
 	$: if (thread) {
 		readMessages();
+		insertThread();	
 	}
 
 	$: reversedMessages = messages.toReversed();
 	let message = '';
 	let running = false;
+
+	const getUser = async () => {
+		let user = await data.supabase.auth.getUser();
+		userID = user.data.user?.id;
+		//console.log(userID);
+	}
+
+	const insertThread = async () => {
+		let {error} = await data.supabase.from('threads').insert([{ user_id: userID, thread_id: thread?.id, assistant_id: assistantWithPatient?.id},]).select();
+		console.log(error);
+	}
 
 	const logout = () => {
 		data.supabase.auth.signOut();
@@ -51,8 +68,8 @@
 	};
 
 	const createThread = async () => {
-		thread = await data.openai.beta.threads.retrieve('thread_1zicz16ftyUhkIfv5rGbJ4cy');
-		// thread = await data.openai.beta.threads.create({});
+		//thread = await data.openai.beta.threads.retrieve('thread_1zicz16ftyUhkIfv5rGbJ4cy');
+		thread = await data.openai.beta.threads.create({});
 	};
 
 	const readMessages = async () => {
@@ -73,10 +90,11 @@
 				},
 				...messages,
 			];
-			await data.openai.beta.threads.messages.create(thread.id, {
+			let result = await data.openai.beta.threads.messages.create(thread.id, {
 				role: 'user',
 				content: newMessage,
 			});
+			//console.log(result);
 		}
 	};
 
