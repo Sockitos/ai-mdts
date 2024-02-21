@@ -12,6 +12,7 @@
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
 	import type { Thread } from 'openai/resources/beta/index.mjs';
 	import type { FileObject } from 'openai/resources/index.mjs';
+	import { afterUpdate } from 'svelte';
 	
 	export let data;
 	
@@ -34,7 +35,6 @@
 	
 	$: if (patient) {
 		if(previousPatientID == undefined || previousPatientID != patient.id){
-			console.log(previousPatientID);
 			previousPatientID=patient.id;
 			readFiles();
 			createThread();
@@ -47,9 +47,19 @@
 		insertThread();	
 	}
 	
+	let element: HTMLDivElement;
 	$: reversedMessages = messages.toReversed();
 	let message = '';
 	let running = false;
+
+	// Either afterUpdate()
+	afterUpdate(() => {
+		if(reversedMessages) scrollToBottom(element);
+  });
+	
+	$: if(reversedMessages && element) {
+		scrollToBottom(element);
+	}
 	
 	const getUser = async () => {
 		let user = await data.supabase.auth.getUser();
@@ -84,10 +94,8 @@
 		if(threadsData.data){
 			let threadDataID = threadsData.data.thread_id
 			thread = await data.openai.beta.threads.retrieve(threadDataID);
-			console.log("Retrieve thread");
 		}
 		else {
-			console.log("Create thread");
 			thread = await data.openai.beta.threads.create({});
 		}
 	};
@@ -133,6 +141,11 @@
 			readMessages();
 		}
 	};
+
+	const scrollToBottom =  async (node: HTMLDivElement) => {
+		node.scroll({top: node.scrollHeight, behavior: 'smooth',});
+	};
+
 </script>
 
 <div class="flex h-full flex-col">
@@ -203,7 +216,7 @@
 			</Button>
 			<LogsDialog />
 		</div>
-		<div
+		<div bind:this={element}
 		class="mx-auto flex w-full max-w-[1000px] flex-1 flex-col gap-y-4 overflow-y-auto px-6 py-4"
 		>
 		{#each reversedMessages as message}
