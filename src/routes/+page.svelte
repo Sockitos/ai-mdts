@@ -8,7 +8,6 @@
 	import { Card } from '@/components/ui/card';
 	import { Separator } from '@/components/ui/separator';
 	import type { AssistantWithPatient, Message, Patient } from '@/types';
-	import { SupabaseAuthClient } from '@supabase/supabase-js/dist/module/lib/SupabaseAuthClient.js';
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
 	import type { Thread } from 'openai/resources/beta/index.mjs';
 	import type { FileObject } from 'openai/resources/index.mjs';
@@ -25,7 +24,7 @@
 	let thread: Thread | undefined;
 	let messages: Message[] = [];
 
-	$: getUser();
+	$: userID = data.user.id;
 
 	$: patients = data.assistants.map((assistant) => assistant.metadata);
 
@@ -59,11 +58,6 @@
 	$: if (reversedMessages && element) {
 		scrollToBottom(element);
 	}
-
-	const getUser = async () => {
-		let user = await data.supabase.auth.getUser();
-		userID = user.data.user?.id;
-	};
 
 	const insertThread = async () => {
 		//await data.supabase.from('threads').upsert({ user_id: userID, thread_id: thread?.id, assistant_id: assistantWithPatient?.id},{onConflict: 'thread_id'});
