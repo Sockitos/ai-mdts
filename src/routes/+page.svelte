@@ -7,9 +7,8 @@
 	import { Button } from '@/components/ui/button';
 	import { Card } from '@/components/ui/card';
 	import { Separator } from '@/components/ui/separator';
-	import type { AssistantWithPatient, Message, Patient } from '@/types';
+	import type { AssistantWithPatient, Message, Patient, UserThread } from '@/types';
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
-	import type { Thread } from 'openai/resources/beta/index.mjs';
 	import type { FileObject } from 'openai/resources/index.mjs';
 	import { afterUpdate } from 'svelte';
 
@@ -17,14 +16,12 @@
 
 	let patients: Patient[] = [];
 	let patient: Patient | undefined;
-	let previousPatientID: string | undefined;
-	let userID: string | undefined;
 	let assistantWithPatient: AssistantWithPatient | undefined;
 	let files: FileObject[] = [];
-	let thread: Thread | undefined;
+	let threadId: string | undefined;
 	let messages: Message[] = [];
-
-	$: userID = data.user.id;
+	let userThreads: UserThread[] = data.userThreads;
+	let canLoadLastThread: boolean = false;
 
 	$: patients = data.assistants.map((assistant) => assistant.metadata);
 
@@ -33,16 +30,21 @@
 	);
 
 	$: if (patient) {
-		if (previousPatientID == undefined || previousPatientID != patient.id) {
-			previousPatientID = patient.id;
-			readFiles();
-			createThread();
-		}
+		threadId = undefined;
+		messages = [];
+		filterFiles();
+		filterUserThreads();
 	}
 
-	$: if (thread) {
-		readMessages();
+	$: canLoadLastThread = userThreads.length > 0;
+
+	$: if (!threadId && !canLoadLastThread) {
+		createThread();
+	}
+
+	$: if (threadId) {
 		insertThread();
+		readMessages();
 	}
 
 	let element: HTMLDivElement;
@@ -59,56 +61,50 @@
 		scrollToBottom(element);
 	}
 
-	const insertThread = async () => {
-		//await data.supabase.from('threads').upsert({ user_id: userID, thread_id: thread?.id, assistant_id: assistantWithPatient?.id},{onConflict: 'thread_id'});
-
-		let threadsData = await data.supabase
-			.from('threads')
-			.select()
-			.match({ thread_id: thread?.id })
-			.maybeSingle();
-
-		if (!threadsData.data) {
-			await data.supabase
-				.from('threads')
-				.insert({ user_id: userID, thread_id: thread?.id, assistant_id: assistantWithPatient?.id });
-		}
-	};
-
 	const logout = () => {
 		data.supabase.auth.signOut();
 	};
 
-	const readFiles = async () => {
+	const filterFiles = async () => {
 		if (patient) {
 			files = data.files.filter((file) => assistantWithPatient?.file_ids.includes(file.id));
 		}
 	};
 
-	const createThread = async () => {
-		let threadsData = await data.supabase
-			.from('threads')
-			.select('thread_id')
-			.match({ user_id: userID, assistant_id: assistantWithPatient?.id })
-			.maybeSingle();
-
-		if (threadsData.data) {
-			let threadDataID = threadsData.data.thread_id;
-			thread = await data.openai.beta.threads.retrieve(threadDataID);
-		} else {
-			thread = await data.openai.beta.threads.create({});
+	const filterUserThreads = async () => {
+		if (patient) {
+			userThreads = data.userThreads.filter(
+				(thread) => thread.assistant_id === assistantWithPatient?.id
+			);
 		}
 	};
 
+	const insertThread = async () => {
+		await data.supabase.from('threads').upsert({
+			user_id: data.user.id,
+			thread_id: threadId,
+			assistant_id: assistantWithPatient?.id,
+		});
+	};
+
+	const createThread = async () => {
+		const thread = await data.openai.beta.threads.create({});
+		threadId = thread.id;
+	};
+
+	const loadLastThread = async () => {
+		threadId = userThreads[0].thread_id;
+	};
+
 	const readMessages = async () => {
-		if (thread) {
-			const messagesData = await data.openai.beta.threads.messages.list(thread.id);
+		if (threadId) {
+			const messagesData = await data.openai.beta.threads.messages.list(threadId);
 			messages = messagesData.data;
 		}
 	};
 
 	const createMessage = async () => {
-		if (thread) {
+		if (threadId) {
 			const newMessage = message;
 			message = '';
 			messages = [
@@ -118,7 +114,7 @@
 				},
 				...messages,
 			];
-			await data.openai.beta.threads.messages.create(thread.id, {
+			await data.openai.beta.threads.messages.create(threadId, {
 				role: 'user',
 				content: newMessage,
 			});
@@ -126,13 +122,13 @@
 	};
 
 	const createAndPollRun = async () => {
-		if (thread && assistantWithPatient) {
+		if (threadId && assistantWithPatient) {
 			let runIsProcessing = true;
-			let run = await data.openai.beta.threads.runs.create(thread.id, {
+			let run = await data.openai.beta.threads.runs.create(threadId, {
 				assistant_id: assistantWithPatient?.id,
 			});
 			while (runIsProcessing) {
-				run = await data.openai.beta.threads.runs.retrieve(thread.id, run.id);
+				run = await data.openai.beta.threads.runs.retrieve(threadId, run.id);
 				if (run.status === 'completed') {
 					runIsProcessing = false;
 				}
@@ -201,13 +197,13 @@
 			<div class="container flex flex-row items-center gap-x-2 py-4">
 				<span class="text-xs font-bold">CONVERSATION</span>
 				<span class="flex-1 text-xs text-muted-foreground"
-					>{thread?.id ?? 'Select a patient to start conversation'}</span
+					>{threadId ?? 'Select a patient to start conversation'}</span
 				>
 				<Button
 					variant="secondary"
 					on:click={() => {
 						messages = [];
-						//createThread();
+						createThread();
 					}}
 				>
 					<Eraser class="mr-2 h-4 w-4" />
@@ -218,23 +214,36 @@
 			<div
 				bind:this={element}
 				class="mx-auto flex w-full max-w-[1000px] flex-1 flex-col gap-y-4 overflow-y-auto px-6 py-4"
+				class:items-center={!threadId}
+				class:justify-center={!threadId}
 			>
-				{#each reversedMessages as message}
-					<div
-						class:self-end={message.role === 'user'}
-						class="flex flex-col gap-y-1"
-						class:items-end={message.role === 'user'}
-					>
-						<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
-						{#each message.content as contentItem}
-							{#if contentItem.type === 'text'}
-								<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
-							{:else}
-								<!-- else content here -->
-							{/if}
+				{#if patient}
+					{#if !threadId && canLoadLastThread}
+						<div class="flex flex-col items-center justify-center gap-y-4">
+							<Button class="" variant="outline" on:click={createThread}>Start Conversation</Button>
+							<span class="text-sm text-muted-foreground"> Or continue with </span>
+							<Button class="" variant="outline" on:click={loadLastThread}>Last Conversation</Button
+							>
+						</div>
+					{:else}
+						{#each reversedMessages as message}
+							<div
+								class:self-end={message.role === 'user'}
+								class="flex flex-col gap-y-1"
+								class:items-end={message.role === 'user'}
+							>
+								<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
+								{#each message.content as contentItem}
+									{#if contentItem.type === 'text'}
+										<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
+									{:else}
+										<!-- else content here -->
+									{/if}
+								{/each}
+							</div>
 						{/each}
-					</div>
-				{/each}
+					{/if}
+				{/if}
 			</div>
 			<div class="mx-auto flex w-full max-w-[1000px] flex-col items-center gap-y-4 px-6 py-5">
 				<Card class="flex w-full flex-col gap-y-4 px-5 py-5">
