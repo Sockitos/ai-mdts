@@ -142,6 +142,15 @@
 	const onModeToggleClicked = () => {
 		insertAuditLog('Click mode toggle', undefined);
 	};
+
+	const downloadFile = async (file: FileObject) => {
+		const { data: urlData } = await data.supabase.storage
+			.from('files')
+			.createSignedUrl(file.filename, 60);
+		if (urlData) {
+			window.open(urlData.signedUrl, '_blank');
+		}
+	};
 </script>
 
 <div class="flex h-full flex-col">
@@ -177,7 +186,7 @@
 						{#each files as file}
 							<div class="flex flex-row items-center gap-x-2">
 								<span class="flex-1 truncate text-sm">{file.filename}</span>
-								<Button size="iconsm" variant="outline">
+								<Button size="iconsm" variant="outline" on:click={() => downloadFile(file)}>
 									<Download class="h-3 w-3" />
 								</Button>
 							</div>
