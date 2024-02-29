@@ -10,16 +10,17 @@
 	import type { AssistantWithPatient, Message, Patient, UserThread } from '@/types';
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
 	import type { FileObject } from 'openai/resources/index.mjs';
-	import { afterUpdate } from 'svelte';
 
 	export let data;
 
 	let patients: Patient[] = [];
 	let patient: Patient | undefined;
+	let previousPatient: Patient | undefined;
 	let assistantWithPatient: AssistantWithPatient | undefined;
 	let files: FileObject[] = [];
 	let threadId: string | undefined;
 	let messages: Message[] = [];
+	$: reversedMessages = messages.toReversed();
 	let userThreads: UserThread[] = data.userThreads;
 	let canLoadLastThread: boolean = false;
 
@@ -29,17 +30,18 @@
 		(assistant) => assistant.metadata.id === patient?.id
 	);
 
-	$: if (patient) {
+	$: if (patient?.id !== previousPatient?.id) {
+		previousPatient = patient;
 		threadId = undefined;
 		messages = [];
-		filterFiles();
-		filterUserThreads();
-	}
-
-	$: canLoadLastThread = userThreads.length > 0;
-
-	$: if (!threadId && !canLoadLastThread) {
-		createThread();
+		files = data.files.filter((file) => assistantWithPatient?.file_ids.includes(file.id));
+		userThreads = data.userThreads.filter(
+			(thread) => thread.assistant_id === assistantWithPatient?.id
+		);
+		canLoadLastThread = userThreads.length > 0;
+		if (!canLoadLastThread) {
+			createThread();
+		}
 	}
 
 	$: if (threadId) {
@@ -52,31 +54,8 @@
 	let message = '';
 	let running = false;
 
-	// Either afterUpdate()
-	afterUpdate(() => {
-		if (reversedMessages) scrollToBottom(element);
-	});
-
-	$: if (reversedMessages && element) {
-		scrollToBottom(element);
-	}
-
 	const logout = () => {
 		data.supabase.auth.signOut();
-	};
-
-	const filterFiles = async () => {
-		if (patient) {
-			files = data.files.filter((file) => assistantWithPatient?.file_ids.includes(file.id));
-		}
-	};
-
-	const filterUserThreads = async () => {
-		if (patient) {
-			userThreads = data.userThreads.filter(
-				(thread) => thread.assistant_id === assistantWithPatient?.id
-			);
-		}
 	};
 
 	const insertThread = async () => {
@@ -136,10 +115,6 @@
 			}
 			readMessages();
 		}
-	};
-
-	const scrollToBottom = async (node: HTMLDivElement) => {
-		node.scroll({ top: node.scrollHeight, behavior: 'smooth' });
 	};
 </script>
 
@@ -212,8 +187,7 @@
 				<LogsDialog />
 			</div>
 			<div
-				bind:this={element}
-				class="mx-auto flex w-full max-w-[1000px] flex-1 flex-col gap-y-4 overflow-y-auto px-6 py-4"
+				class="mx-auto flex w-full max-w-[1000px] flex-1 flex-col-reverse overflow-y-auto px-6 py-4"
 				class:items-center={!threadId}
 				class:justify-center={!threadId}
 			>
@@ -226,22 +200,24 @@
 							>
 						</div>
 					{:else}
-						{#each reversedMessages as message}
-							<div
-								class:self-end={message.role === 'user'}
-								class="flex flex-col gap-y-1"
-								class:items-end={message.role === 'user'}
-							>
-								<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
-								{#each message.content as contentItem}
-									{#if contentItem.type === 'text'}
-										<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
-									{:else}
-										<!-- else content here -->
-									{/if}
-								{/each}
-							</div>
-						{/each}
+						<div class="flex flex-col gap-y-4">
+							{#each reversedMessages as message}
+								<div
+									class:self-end={message.role === 'user'}
+									class="flex flex-col gap-y-1"
+									class:items-end={message.role === 'user'}
+								>
+									<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
+									{#each message.content as contentItem}
+										{#if contentItem.type === 'text'}
+											<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
+										{:else}
+											<!-- else content here -->
+										{/if}
+									{/each}
+								</div>
+							{/each}
+						</div>
 					{/if}
 				{/if}
 			</div>
