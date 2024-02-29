@@ -23,7 +23,7 @@ export const load = async ({ parent }) => {
 
 	const files = await openai.files.list();
 	const assistants = await openai.beta.assistants.list();
-	const filteredAssistants = assistants.data.filter((assistant) =>
+	const filteredAssistants = assistants.data.filter((assistant: Assistant) =>
 		instanceOfPatient(assistant)
 	) as AssistantWithPatient[];
 

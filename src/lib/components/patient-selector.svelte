@@ -6,13 +6,20 @@
 	import { Button } from './ui/button';
 	import * as Command from './ui/command';
 	import * as Popover from './ui/popover';
+	import { createEventDispatcher } from 'svelte';
 
 	export let patients: Patient[];
 	export let value: Patient | undefined;
 
+	const dispatch = createEventDispatcher();
+
 	let open = false;
 
 	$: selectedValue = patients.find((p) => p.id === value?.id)?.name ?? 'Load a patient...';
+
+	function onClick() {
+		dispatch('message');
+	}
 
 	// We want to refocus the trigger button when the user selects
 	// an item from the list so users can continue navigating the
@@ -33,6 +40,7 @@
 			role="combobox"
 			aria-expanded={open}
 			class="md:max-w-[200px] lg:max-w-[300px]"
+			on:click={onClick}
 		>
 			{selectedValue}
 			<CaretSort class="ml-2 h-4 w-4 shrink-0 opacity-50" />

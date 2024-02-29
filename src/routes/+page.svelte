@@ -1,8 +1,9 @@
 <script lang="ts">
+	import PatientSelector from './../lib/components/patient-selector.svelte';
 	import { base } from '$app/paths';
 	import LogsDialog from '@/components/logs-dialog.svelte';
 	import ModeToggle from '@/components/mode-toggle.svelte';
-	import PatientSelector from '@/components/patient-selector.svelte';
+	//import PatientSelector from '@/components/patient-selector.svelte';
 	import * as Avatar from '@/components/ui/avatar';
 	import { Button } from '@/components/ui/button';
 	import { Card } from '@/components/ui/card';
@@ -10,6 +11,9 @@
 	import type { AssistantWithPatient, Message, Patient, UserThread } from '@/types';
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
 	import type { FileObject } from 'openai/resources/index.mjs';
+	import { actionResult } from 'sveltekit-superforms/client';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	export let data;
 
@@ -24,6 +28,9 @@
 	let userThreads: UserThread[] = data.userThreads;
 	let canLoadLastThread: boolean = false;
 
+	let action: string | undefined;
+	let entityId: string | undefined;
+
 	$: patients = data.assistants.map((assistant) => assistant.metadata);
 
 	$: assistantWithPatient = data.assistants.find(
@@ -34,6 +41,7 @@
 		previousPatient = patient;
 		threadId = undefined;
 		messages = [];
+		insertAuditLog('Patient selected', patient?.id);
 		files = data.files.filter((file) => assistantWithPatient?.file_ids.includes(file.id));
 		userThreads = data.userThreads.filter(
 			(thread) => thread.assistant_id === assistantWithPatient?.id
@@ -52,7 +60,8 @@
 	let message = '';
 	let running = false;
 
-	const logout = () => {
+	const logout = async () => {
+		await insertAuditLog('Log Out', undefined);
 		data.supabase.auth.signOut();
 	};
 
@@ -66,11 +75,13 @@
 
 	const createThread = async () => {
 		const thread = await data.openai.beta.threads.create({});
+		await insertAuditLog('Created new thread', thread.id);
 		threadId = thread.id;
 	};
 
 	const loadLastThread = async () => {
 		threadId = userThreads[0].thread_id;
+		await insertAuditLog('Load thread', threadId);
 	};
 
 	const readMessages = async () => {
@@ -91,10 +102,11 @@
 				},
 				...messages,
 			];
-			await data.openai.beta.threads.messages.create(threadId, {
+			const receivedMessage = await data.openai.beta.threads.messages.create(threadId, {
 				role: 'user',
 				content: newMessage,
 			});
+			await insertAuditLog('Sent Message', threadId + ';' + receivedMessage.id);
 		}
 	};
 
@@ -114,13 +126,29 @@
 			readMessages();
 		}
 	};
+
+	const insertAuditLog = async (action: string | undefined, entityId: string | undefined) => {
+		await data.supabase.from('audit_log').insert({
+			user_id: data.user.id,
+			action: action,
+			entity_id: entityId,
+		});
+	};
+
+	const onSelectorClicked = () => {
+		insertAuditLog('Click dropdown', undefined);
+	};
+
+	const onModeToggleClicked = () => {
+		insertAuditLog('Click mode toggle', undefined);
+	};
 </script>
 
 <div class="flex h-full flex-col">
 	<div class="container flex h-16 flex-row items-center justify-between py-4">
 		<h1 class="text-xl font-bold">AI MDTs</h1>
 		<div class="flex flex-row items-center gap-x-2">
-			<ModeToggle />
+			<ModeToggle on:message={onModeToggleClicked} />
 			<Button size="icon" variant="outline" on:click={logout}>
 				<LogOut class="h-4 w-4" />
 			</Button>
@@ -161,7 +189,7 @@
 					<span class="text-center text-sm text-muted-foreground">
 						Please select a patient to start a conversation.
 					</span>
-					<PatientSelector {patients} bind:value={patient} />
+					<PatientSelector {patients} bind:value={patient} on:message={onSelectorClicked} />
 				</div>
 			{/if}
 		</div>
