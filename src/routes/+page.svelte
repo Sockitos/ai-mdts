@@ -49,8 +49,6 @@
 		readMessages();
 	}
 
-	let element: HTMLDivElement;
-	$: reversedMessages = messages.toReversed();
 	let message = '';
 	let running = false;
 
