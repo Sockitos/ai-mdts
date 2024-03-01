@@ -13,6 +13,7 @@ export const load = async ({ parent }) => {
 		const { data } = await supabase
 			.from('threads')
 			.select('*')
+			.eq('user_id', session?.user.id)
 			.order('created_at', { ascending: false });
 		return data ?? [];
 	}
