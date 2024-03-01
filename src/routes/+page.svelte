@@ -1,9 +1,9 @@
 <script lang="ts">
-	import PatientSelector from './../lib/components/patient-selector.svelte';
 	import { base } from '$app/paths';
+	import { page } from '$app/stores';
 	import LogsDialog from '@/components/logs-dialog.svelte';
 	import ModeToggle from '@/components/mode-toggle.svelte';
-	//import PatientSelector from '@/components/patient-selector.svelte';
+	import PatientSelector from '@/components/patient-selector.svelte';
 	import * as Avatar from '@/components/ui/avatar';
 	import { Button } from '@/components/ui/button';
 	import { Card } from '@/components/ui/card';
@@ -11,16 +11,17 @@
 	import type { AssistantWithPatient, Message, Patient, UserThread } from '@/types';
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
 	import type { FileObject } from 'openai/resources/index.mjs';
-	import { actionResult } from 'sveltekit-superforms/client';
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { queryParam } from 'sveltekit-search-params';
 
 	export let data;
 
 	let patients: Patient[] = [];
+	$: restrict = $page.url.searchParams.get('restrict') === 'true' ?? false;
+	const patientId = queryParam('patient');
 	let patient: Patient | undefined;
 	let previousPatient: Patient | undefined;
 	let assistantWithPatient: AssistantWithPatient | undefined;
+
 	let files: FileObject[] = [];
 	let threadId: string | undefined;
 	let messages: Message[] = [];
@@ -28,10 +29,11 @@
 	let userThreads: UserThread[] = data.userThreads;
 	let canLoadLastThread: boolean = false;
 
-	let action: string | undefined;
-	let entityId: string | undefined;
-
 	$: patients = data.assistants.map((assistant) => assistant.metadata);
+
+	$: if (patientId) {
+		patient = patients.find((p) => p.id === $patientId);
+	}
 
 	$: assistantWithPatient = data.assistants.find(
 		(assistant) => assistant.metadata.id === patient?.id
@@ -173,7 +175,7 @@
 							<Avatar.Image src="{base}{patient.avatar}" alt="PT" />
 							<Avatar.Fallback>PT</Avatar.Fallback>
 						</Avatar.Root>
-						<PatientSelector {patients} bind:value={patient} />
+						<PatientSelector {patients} disabled={restrict} bind:value={$patientId} />
 					</div>
 					<div class="mt-10 flex flex-col gap-y-2">
 						<div class="flex flex-row items-center gap-x-2 pb-2">
@@ -198,7 +200,12 @@
 					<span class="text-center text-sm text-muted-foreground">
 						Please select a patient to start a conversation.
 					</span>
-					<PatientSelector {patients} bind:value={patient} on:message={onSelectorClicked} />
+					<PatientSelector
+						{patients}
+						disabled={restrict}
+						bind:value={$patientId}
+						on:message={onSelectorClicked}
+					/>
 				</div>
 			{/if}
 		</div>
