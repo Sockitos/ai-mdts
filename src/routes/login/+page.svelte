@@ -10,19 +10,8 @@
 
 	let submitting = false;
 
-	const form = superForm(superValidateSync(loginSchema), {
-		SPA: true,
-		validators: loginSchema,
-		onSubmit: async () => {
-			submitting = true;
-			await login();
-			submitting;
-		},
-	});
-
-	const { form: formStore } = form;
-
 	const login = async () => {
+		submitting = true;
 		const { error } = await data.supabase.auth.signInWithPassword({
 			email: $formStore.email,
 			password: $formStore.password,
@@ -30,8 +19,17 @@
 
 		if (error) {
 			toast.error(error.message ?? 'Something went wrong');
+			submitting = false;
 		}
 	};
+
+	const form = superForm(superValidateSync(loginSchema), {
+		SPA: true,
+		validators: loginSchema,
+		onSubmit: login,
+	});
+
+	const { form: formStore } = form;
 </script>
 
 <div class="container flex h-full flex-col items-center justify-center">
