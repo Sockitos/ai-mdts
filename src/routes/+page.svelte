@@ -180,7 +180,7 @@
 					<div class="mt-10 flex flex-col gap-y-2">
 						<div class="flex flex-row items-center gap-x-2 pb-2">
 							<span class="flex-1 font-semibold">FILES</span>
-							<Button variant="secondary" size="sm">
+							<Button variant="secondary" size="sm" disabled>
 								<Paperclip class="mr-2 h-3 w-3" />
 								Add file
 							</Button>
