@@ -16,3 +16,9 @@ export type Message = {
 };
 
 export type AssistantWithPatient = Assistant & { metadata: Patient };
+
+export type UserThread = {
+	user_id: string;
+	thread_id: string;
+	assistant_id: string;
+};

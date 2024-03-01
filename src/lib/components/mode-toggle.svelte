@@ -3,11 +3,18 @@
 	import * as DropdownMenu from '@/components/ui/dropdown-menu';
 	import { Moon, Sun } from 'lucide-svelte';
 	import { resetMode, setMode } from 'mode-watcher';
+	import { createEventDispatcher } from 'svelte';
+
+	const dispatch = createEventDispatcher();
+
+	function onClick() {
+		dispatch('message');
+	}
 </script>
 
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger asChild let:builder>
-		<Button builders={[builder]} variant="ghost" class="w-9 px-0">
+		<Button builders={[builder]} variant="ghost" class="w-9 px-0" on:click={onClick}>
 			<Sun
 				class="dark:-roate-90 h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:scale-0"
 			/>

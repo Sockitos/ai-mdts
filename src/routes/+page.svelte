@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
+	import { page } from '$app/stores';
 	import LogsDialog from '@/components/logs-dialog.svelte';
 	import ModeToggle from '@/components/mode-toggle.svelte';
 	import PatientSelector from '@/components/patient-selector.svelte';
@@ -7,63 +8,93 @@
 	import { Button } from '@/components/ui/button';
 	import { Card } from '@/components/ui/card';
 	import { Separator } from '@/components/ui/separator';
-	import type { AssistantWithPatient, Message, Patient } from '@/types';
+	import type { AssistantWithPatient, Message, Patient, UserThread } from '@/types';
 	import { Download, Eraser, Loader2, LogOut, Paperclip, SendHorizontal } from 'lucide-svelte';
-	import type { Thread } from 'openai/resources/beta/index.mjs';
 	import type { FileObject } from 'openai/resources/index.mjs';
+	import { queryParam } from 'sveltekit-search-params';
 
 	export let data;
 
 	let patients: Patient[] = [];
+	$: restrict = $page.url.searchParams.get('restrict') === 'true' ?? false;
+	const patientId = queryParam('patient');
 	let patient: Patient | undefined;
+	let previousPatient: Patient | undefined;
 	let assistantWithPatient: AssistantWithPatient | undefined;
+
 	let files: FileObject[] = [];
-	let thread: Thread | undefined;
+	let threadId: string | undefined;
 	let messages: Message[] = [];
+	$: reversedMessages = messages.toReversed();
+	let userThreads: UserThread[] = data.userThreads;
+	let canLoadLastThread: boolean = false;
 
 	$: patients = data.assistants.map((assistant) => assistant.metadata);
+
+	$: if (patientId) {
+		patient = patients.find((p) => p.id === $patientId);
+	}
 
 	$: assistantWithPatient = data.assistants.find(
 		(assistant) => assistant.metadata.id === patient?.id
 	);
 
-	$: if (patient) {
-		readFiles();
-		createThread();
+	$: if (patient?.id !== previousPatient?.id) {
+		previousPatient = patient;
+		threadId = undefined;
+		messages = [];
+		insertAuditLog('Patient selected', patient?.id);
+		files = data.files.filter((file) => assistantWithPatient?.file_ids.includes(file.id));
+		userThreads = data.userThreads.filter(
+			(thread) => thread.assistant_id === assistantWithPatient?.id
+		);
+		canLoadLastThread = userThreads.length > 0;
+		if (!canLoadLastThread) {
+			createThread();
+		}
 	}
 
-	$: if (thread) {
+	$: if (threadId) {
+		insertThread();
 		readMessages();
 	}
 
-	$: reversedMessages = messages.toReversed();
 	let message = '';
 	let running = false;
 
-	const logout = () => {
+	const logout = async () => {
+		await insertAuditLog('Log Out', undefined);
 		data.supabase.auth.signOut();
 	};
 
-	const readFiles = async () => {
-		if (patient) {
-			files = data.files.filter((file) => assistantWithPatient?.file_ids.includes(file.id));
-		}
+	const insertThread = async () => {
+		await data.supabase.from('threads').upsert({
+			user_id: data.user.id,
+			thread_id: threadId,
+			assistant_id: assistantWithPatient?.id,
+		});
 	};
 
 	const createThread = async () => {
-		thread = await data.openai.beta.threads.retrieve('thread_1zicz16ftyUhkIfv5rGbJ4cy');
-		// thread = await data.openai.beta.threads.create({});
+		const thread = await data.openai.beta.threads.create({});
+		await insertAuditLog('Created new thread', thread.id);
+		threadId = thread.id;
+	};
+
+	const loadLastThread = async () => {
+		threadId = userThreads[0].thread_id;
+		await insertAuditLog('Load thread', threadId);
 	};
 
 	const readMessages = async () => {
-		if (thread) {
-			const messagesData = await data.openai.beta.threads.messages.list(thread.id);
+		if (threadId) {
+			const messagesData = await data.openai.beta.threads.messages.list(threadId);
 			messages = messagesData.data;
 		}
 	};
 
 	const createMessage = async () => {
-		if (thread) {
+		if (threadId) {
 			const newMessage = message;
 			message = '';
 			messages = [
@@ -73,21 +104,22 @@
 				},
 				...messages,
 			];
-			await data.openai.beta.threads.messages.create(thread.id, {
+			const receivedMessage = await data.openai.beta.threads.messages.create(threadId, {
 				role: 'user',
 				content: newMessage,
 			});
+			await insertAuditLog('Sent Message', threadId + ';' + receivedMessage.id);
 		}
 	};
 
 	const createAndPollRun = async () => {
-		if (thread && assistantWithPatient) {
+		if (threadId && assistantWithPatient) {
 			let runIsProcessing = true;
-			let run = await data.openai.beta.threads.runs.create(thread.id, {
+			let run = await data.openai.beta.threads.runs.create(threadId, {
 				assistant_id: assistantWithPatient?.id,
 			});
 			while (runIsProcessing) {
-				run = await data.openai.beta.threads.runs.retrieve(thread.id, run.id);
+				run = await data.openai.beta.threads.runs.retrieve(threadId, run.id);
 				if (run.status === 'completed') {
 					runIsProcessing = false;
 				}
@@ -96,13 +128,38 @@
 			readMessages();
 		}
 	};
+
+	const insertAuditLog = async (action: string | undefined, entityId: string | undefined) => {
+		await data.supabase.from('audit_log').insert({
+			user_id: data.user.id,
+			action: action,
+			entity_id: entityId,
+		});
+	};
+
+	const onSelectorClicked = () => {
+		insertAuditLog('Click dropdown', undefined);
+	};
+
+	const onModeToggleClicked = () => {
+		insertAuditLog('Click mode toggle', undefined);
+	};
+
+	const downloadFile = async (file: FileObject) => {
+		const { data: urlData } = await data.supabase.storage
+			.from('files')
+			.createSignedUrl(file.filename, 60);
+		if (urlData) {
+			window.open(urlData.signedUrl, '_blank');
+		}
+	};
 </script>
 
 <div class="flex h-full flex-col">
 	<div class="container flex h-16 flex-row items-center justify-between py-4">
 		<h1 class="text-xl font-bold">AI MDTs</h1>
 		<div class="flex flex-row items-center gap-x-2">
-			<ModeToggle />
+			<ModeToggle on:message={onModeToggleClicked} />
 			<Button size="icon" variant="outline" on:click={logout}>
 				<LogOut class="h-4 w-4" />
 			</Button>
@@ -118,7 +175,7 @@
 							<Avatar.Image src="{base}{patient.avatar}" alt="PT" />
 							<Avatar.Fallback>PT</Avatar.Fallback>
 						</Avatar.Root>
-						<PatientSelector {patients} bind:value={patient} />
+						<PatientSelector {patients} disabled={restrict} bind:value={$patientId} />
 					</div>
 					<div class="mt-10 flex flex-col gap-y-2">
 						<div class="flex flex-row items-center gap-x-2 pb-2">
@@ -131,7 +188,7 @@
 						{#each files as file}
 							<div class="flex flex-row items-center gap-x-2">
 								<span class="flex-1 truncate text-sm">{file.filename}</span>
-								<Button size="iconsm" variant="outline">
+								<Button size="iconsm" variant="outline" on:click={() => downloadFile(file)}>
 									<Download class="h-3 w-3" />
 								</Button>
 							</div>
@@ -143,7 +200,12 @@
 					<span class="text-center text-sm text-muted-foreground">
 						Please select a patient to start a conversation.
 					</span>
-					<PatientSelector {patients} bind:value={patient} />
+					<PatientSelector
+						{patients}
+						disabled={restrict}
+						bind:value={$patientId}
+						on:message={onSelectorClicked}
+					/>
 				</div>
 			{/if}
 		</div>
@@ -152,7 +214,7 @@
 			<div class="container flex flex-row items-center gap-x-2 py-4">
 				<span class="text-xs font-bold">CONVERSATION</span>
 				<span class="flex-1 text-xs text-muted-foreground"
-					>{thread?.id ?? 'Select a patient to start conversation'}</span
+					>{threadId ?? 'Select a patient to start conversation'}</span
 				>
 				<Button
 					variant="secondary"
@@ -167,24 +229,39 @@
 				<LogsDialog />
 			</div>
 			<div
-				class="mx-auto flex w-full max-w-[1000px] flex-1 flex-col gap-y-4 overflow-y-auto px-6 py-4"
+				class="mx-auto flex w-full max-w-[1000px] flex-1 flex-col-reverse overflow-y-auto px-6 py-4"
+				class:items-center={!threadId}
+				class:justify-center={!threadId}
 			>
-				{#each reversedMessages as message}
-					<div
-						class:self-end={message.role === 'user'}
-						class="flex flex-col gap-y-1"
-						class:items-end={message.role === 'user'}
-					>
-						<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
-						{#each message.content as contentItem}
-							{#if contentItem.type === 'text'}
-								<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
-							{:else}
-								<!-- else content here -->
-							{/if}
-						{/each}
-					</div>
-				{/each}
+				{#if patient}
+					{#if !threadId && canLoadLastThread}
+						<div class="flex flex-col items-center justify-center gap-y-4">
+							<Button class="" variant="outline" on:click={createThread}>Start Conversation</Button>
+							<span class="text-sm text-muted-foreground"> Or continue with </span>
+							<Button class="" variant="outline" on:click={loadLastThread}>Last Conversation</Button
+							>
+						</div>
+					{:else}
+						<div class="flex flex-col gap-y-4">
+							{#each reversedMessages as message}
+								<div
+									class:self-end={message.role === 'user'}
+									class="flex flex-col gap-y-1"
+									class:items-end={message.role === 'user'}
+								>
+									<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
+									{#each message.content as contentItem}
+										{#if contentItem.type === 'text'}
+											<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
+										{:else}
+											<!-- else content here -->
+										{/if}
+									{/each}
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{/if}
 			</div>
 			<div class="mx-auto flex w-full max-w-[1000px] flex-col items-center gap-y-4 px-6 py-5">
 				<Card class="flex w-full flex-col gap-y-4 px-5 py-5">
