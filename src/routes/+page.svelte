@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import { page } from '$app/stores';
+	import ChatBubble from '@/components/chat-bubble.svelte';
 	import LogsDialog from '@/components/logs-dialog.svelte';
 	import ModeToggle from '@/components/mode-toggle.svelte';
 	import PatientSelector from '@/components/patient-selector.svelte';
@@ -229,7 +230,7 @@
 				<LogsDialog />
 			</div>
 			<div
-				class="mx-auto flex w-full max-w-[1000px] flex-1 flex-col-reverse overflow-y-auto px-6 py-4"
+				class="mx-auto flex w-full max-w-[1200px] flex-1 flex-col-reverse overflow-y-auto px-6 py-4"
 				class:items-center={!threadId}
 				class:justify-center={!threadId}
 			>
@@ -244,26 +245,13 @@
 					{:else}
 						<div class="flex flex-col gap-y-4">
 							{#each reversedMessages as message}
-								<div
-									class:self-end={message.role === 'user'}
-									class="flex flex-col gap-y-1"
-									class:items-end={message.role === 'user'}
-								>
-									<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
-									{#each message.content as contentItem}
-										{#if contentItem.type === 'text'}
-											<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
-										{:else}
-											<!-- else content here -->
-										{/if}
-									{/each}
-								</div>
+								<ChatBubble {message} />
 							{/each}
 						</div>
 					{/if}
 				{/if}
 			</div>
-			<div class="mx-auto flex w-full max-w-[1000px] flex-col items-center gap-y-4 px-6 py-5">
+			<div class="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-y-4 px-6 py-5">
 				<Card class="flex w-full flex-col gap-y-4 px-5 py-5">
 					<textarea
 						placeholder="Enter your message..."
