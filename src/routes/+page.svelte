@@ -18,6 +18,7 @@
 
 	let patients: Patient[] = [];
 	$: restrict = $page.url.searchParams.get('restrict') === 'true' ?? false;
+	$: legacy = $page.url.searchParams.get('legacy') === 'true' ?? false;
 	const patientId = queryParam('patient');
 	let patient: Patient | undefined;
 	let previousPatient: Patient | undefined;
@@ -241,7 +242,7 @@
 					class="mx-auto flex w-full max-w-[1200px] flex-1 flex-col-reverse overflow-y-auto px-6 py-4"
 				>
 					{#each reversedMessages as message}
-						<ChatBubble {message} />
+						<ChatBubble {message} markdown={!legacy} />
 					{/each}
 				</div>
 				<form method="POST" on:submit|preventDefault={handleSubmit}>
@@ -283,6 +284,41 @@
 					<span class="text-sm text-muted-foreground"> Or continue with </span>
 					<Button class="" variant="outline" on:click={loadLastThread}>Last Conversation</Button>
 				</div>
+				{#if legacy}
+					<form method="POST" on:submit|preventDefault={handleSubmit}>
+						<div class="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-y-4 px-6 py-5">
+							<Card class="flex w-full flex-col gap-y-4 px-5 py-5">
+								<textarea
+									placeholder="Enter your message..."
+									class="resize-none border-none outline-none"
+									bind:value={message}
+								/>
+								<div class="flex flex-row items-center justify-between">
+									<Button
+										size="icon"
+										variant="secondary"
+										on:click={() => {
+											message = '';
+										}}
+									>
+										<Eraser class="h-4 w-4" />
+									</Button>
+									<Button disabled={!message || running} type="submit">
+										Send
+										{#if running}
+											<Loader2 class="ml-2 h-4 w-4 animate-spin" />
+										{:else}
+											<SendHorizontal class="ml-2 h-4 w-4" />
+										{/if}
+									</Button>
+								</div>
+							</Card>
+							<span class="text-sm text-muted-foreground">
+								This conversation is being recorded anonymously.
+							</span>
+						</div>
+					</form>
+				{/if}
 			{/if}
 		</div>
 	</div>

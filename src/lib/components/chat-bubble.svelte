@@ -3,6 +3,7 @@
 	import SvelteMarkdown from 'svelte-markdown';
 
 	export let message: Message;
+	export let markdown: boolean = true;
 </script>
 
 <div
@@ -13,9 +14,13 @@
 	<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
 	{#each message.content as contentItem}
 		{#if contentItem.type === 'text'}
-			<div class="prose-neutral dark:prose-invert prose-sm max-w-[600px]">
-				<SvelteMarkdown source={contentItem.text.value} />
-			</div>
+			{#if markdown}
+				<div class="prose-sm prose-neutral max-w-[600px] dark:prose-invert">
+					<SvelteMarkdown source={contentItem.text.value} />
+				</div>
+			{:else}
+				<p class="max-w-[400px] text-sm">{contentItem.text.value}</p>
+			{/if}
 		{:else}
 			<!-- else content here -->
 		{/if}
