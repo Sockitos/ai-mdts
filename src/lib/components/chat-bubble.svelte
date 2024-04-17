@@ -13,7 +13,7 @@
 	<span class="text-xs font-bold">{message.role.toUpperCase()}</span>
 	{#each message.content as contentItem}
 		{#if contentItem.type === 'text'}
-			<div class="prose prose-sm max-w-[600px]">
+			<div class="prose-neutral dark:prose-invert prose-sm max-w-[600px]">
 				<SvelteMarkdown source={contentItem.text.value} />
 			</div>
 		{:else}
