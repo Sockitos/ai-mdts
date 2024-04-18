@@ -241,9 +241,11 @@
 				<div
 					class="mx-auto flex w-full max-w-[1200px] flex-1 flex-col-reverse overflow-y-auto px-6 py-4"
 				>
-					{#each reversedMessages as message}
-						<ChatBubble {message} markdown={!legacy} />
-					{/each}
+					<div class="flex flex-col gap-y-4">
+						{#each reversedMessages as message}
+							<ChatBubble {message} markdown={!legacy} />
+						{/each}
+					</div>
 				</div>
 				<form method="POST" on:submit|preventDefault={handleSubmit}>
 					<div class="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-y-4 px-6 py-5">
