@@ -1,10 +1,12 @@
 <script lang="ts">
 	import * as Card from '@/components/ui/card';
 	import * as Form from '@/components/ui/form';
+	import { Input } from '@/components/ui/input';
 	import { loginSchema } from '@/schemas';
 	import { Loader2 } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
-	import { superForm, superValidateSync } from 'sveltekit-superforms/client';
+	import { zod, zodClient } from 'sveltekit-superforms/adapters';
+	import { defaults, superForm } from 'sveltekit-superforms/client';
 
 	export let data;
 
@@ -13,8 +15,8 @@
 	const login = async () => {
 		submitting = true;
 		const { error } = await data.supabase.auth.signInWithPassword({
-			email: $formStore.email,
-			password: $formStore.password,
+			email: $formData.email,
+			password: $formData.password,
 		});
 
 		if (error) {
@@ -23,13 +25,13 @@
 		}
 	};
 
-	const form = superForm(superValidateSync(loginSchema), {
+	const form = superForm(defaults(zod(loginSchema)), {
 		SPA: true,
-		validators: loginSchema,
+		validators: zodClient(loginSchema),
 		onSubmit: login,
 	});
 
-	const { form: formStore } = form;
+	const { form: formData, enhance } = form;
 </script>
 
 <div class="container flex h-full flex-col items-center justify-center">
@@ -39,20 +41,20 @@
 			<Card.Description>Login to enter AI MDTs</Card.Description>
 		</Card.Header>
 		<Card.Content>
-			<Form.Root method="POST" controlled {form} schema={loginSchema} let:config>
-				<Form.Field {config} name="email">
-					<Form.Item>
+			<form method="POST" use:enhance>
+				<Form.Field {form} name="email">
+					<Form.Control let:attrs>
 						<Form.Label>Email</Form.Label>
-						<Form.Input />
-						<Form.Validation />
-					</Form.Item>
+						<Input {...attrs} bind:value={$formData.email} />
+						<Form.FieldErrors />
+					</Form.Control>
 				</Form.Field>
-				<Form.Field {config} name="password">
-					<Form.Item>
+				<Form.Field {form} name="password">
+					<Form.Control let:attrs>
 						<Form.Label>Password</Form.Label>
-						<Form.Input type="password" />
-						<Form.Validation />
-					</Form.Item>
+						<Input {...attrs} bind:value={$formData.password} />
+						<Form.FieldErrors />
+					</Form.Control>
 				</Form.Field>
 				<Form.Button class="mt-5" disabled={submitting}>
 					{#if submitting}
@@ -60,7 +62,7 @@
 					{/if}
 					Login
 				</Form.Button>
-			</Form.Root>
+			</form>
 		</Card.Content>
 	</Card.Root>
 </div>
