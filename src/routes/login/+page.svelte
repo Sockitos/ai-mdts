@@ -28,7 +28,12 @@
 	const form = superForm(defaults(zod(loginSchema)), {
 		SPA: true,
 		validators: zodClient(loginSchema),
-		onSubmit: login,
+		resetForm: false,
+		onUpdate: ({ form }) => {
+			if (form.valid) {
+				login();
+			}
+		},
 	});
 
 	const { form: formData, enhance } = form;
@@ -52,7 +57,7 @@
 				<Form.Field {form} name="password">
 					<Form.Control let:attrs>
 						<Form.Label>Password</Form.Label>
-						<Input {...attrs} bind:value={$formData.password} />
+						<Input {...attrs} type="password" bind:value={$formData.password} />
 						<Form.FieldErrors />
 					</Form.Control>
 				</Form.Field>
